@@ -7,7 +7,13 @@
 [![Coverage Status](https://coveralls.io/repos/github/ethlo/spring-tx-cache-decorator/badge.svg?branch=master)](https://coveralls.io/github/ethlo/spring-tx-cache-decorator?branch=master)
 
 
-Simple, transaction-aware cache decorator that holds cache values transiently until commit to avoid polluting the cache with invalid values in case of a rollback 
+Simple, transaction-aware cache decorator that holds cache values transiently until commit to avoid polluting the cache with invalid values in case of a rollback.
+
+## How to use
+```java
+final Cache myCache = myCacheManager.getCache("my-cache");
+final Cache myWrappedCache = new EnhancedTransactionAwareCacheDecorator(myCache);
+```
 
 ## Why not just use Spring's own [TransactionAwareCacheDecorator](https://docs.spring.io/spring/docs/current/javadoc-api/org/springframework/cache/transaction/TransactionAwareCacheDecorator.html)?
 

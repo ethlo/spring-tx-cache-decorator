@@ -20,7 +20,6 @@ package com.etho.cache.spring;
  * #L%
  */
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -43,9 +42,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     private final boolean errorOnUnsafe;
 
     // Important: NOT static as we need one for each cache instance
-    private final ThreadLocal<Map<Object, ValueWrapper>> transientCache = ThreadLocal.withInitial(HashMap::new);
-    private final ThreadLocal<Boolean> transientCleared = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private final ThreadLocal<Boolean> hasSyncSetup = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private final ThreadLocal<TransientCacheData> transientData = ThreadLocal.withInitial(TransientCacheData::new);
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache)
     {
@@ -74,7 +71,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public ValueWrapper get(final Object key)
     {
-        final ValueWrapper res = transientCache.get().get(key);
+        final ValueWrapper res = transientData.get().getTransientCache().get(key);
         if (res != null && NullValue.INSTANCE == res.get())
         {
             // Explicitly set as deleted
@@ -84,7 +81,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             return res;
         }
-        else if (!transientCleared.get())
+        else if (!transientData.get().isCacheCleared())
         {
             logger.debug("Fetching {} from cache", key);
             return cache.get(key);
@@ -105,13 +102,13 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public <T> T get(final Object key, final Callable<T> valueLoader)
     {
-        final ValueWrapper transientData = transientCache.get().get(key);
-        if (transientData != null)
+        final ValueWrapper transientValue = transientData.get().getTransientCache().get(key);
+        if (transientValue != null)
         {
-            return (T) fromStoreValue(transientData.get());
+            return (T) fromStoreValue(transientValue.get());
         }
 
-        if (! transientCleared.get())
+        if (!transientData.get().isCacheCleared())
         {
             final ValueWrapper cachedData = cache.get(key);
             if (cachedData != null)
@@ -121,7 +118,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
 
         final T storedData = (T) toStoreValue(new LoadFunction(valueLoader).apply(key));
-        transientCache.get().put(key, new SimpleValueWrapper(storedData));
+        transientData.get().getTransientCache().put(key, new SimpleValueWrapper(storedData));
 
         cacheSync();
 
@@ -130,7 +127,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     private void cacheSync()
     {
-        if (hasSyncSetup.get())
+        if (transientData.get().isSyncSetup())
         {
             logger.debug("Cache sync transaction already set up. Skipping");
             return;
@@ -149,12 +146,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 @Override
                 public void afterCompletion(final int status)
                 {
-                    transientCache.remove();
-                    transientCleared.remove();
-                    hasSyncSetup.remove();
+                    transientData.remove();
                 }
             });
-            hasSyncSetup.set(true);
+            transientData.get().syncSetup();
             logger.debug("Cache sync transaction callback added");
         }
         else
@@ -165,12 +160,12 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     private void copyTransient()
     {
-        if (transientCleared.get())
+        if (transientData.get().isCacheCleared())
         {
             cache.clear();
         }
 
-        for (Map.Entry<Object, ValueWrapper> entry : transientCache.get().entrySet())
+        for (Map.Entry<Object, ValueWrapper> entry : transientData.get().getTransientCache().entrySet())
         {
             if (entry.getValue().get() == NullValue.INSTANCE)
             {
@@ -183,13 +178,13 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 cache.put(entry.getKey(), entry.getValue().get());
             }
         }
-        transientCache.get().clear();
+        transientData.get().getTransientCache().clear();
     }
 
     @Override
     public void put(final Object key, final Object value)
     {
-        transientCache.get().put(key, new SimpleValueWrapper(toStoreValue(value)));
+        transientData.get().getTransientCache().put(key, new SimpleValueWrapper(toStoreValue(value)));
         cacheSync();
     }
 
@@ -207,15 +202,15 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void evict(final Object key)
     {
-        transientCache.get().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
+        transientData.get().getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
         cacheSync();
     }
 
     @Override
     public void clear()
     {
-        transientCleared.set(true);
-        transientCache.get().clear();
+        transientData.get().cleared();
+        transientData.get().getTransientCache().clear();
         cacheSync();
     }
 

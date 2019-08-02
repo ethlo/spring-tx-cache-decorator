@@ -1,5 +1,12 @@
-anguage: java
+dist: xenial
+sudo: required
+language: java
 jdk:
   - openjdk8
-after_success:
-  - mvn clean test jacoco:report coveralls:report
+  - openjdk11
+  
+cache:
+  directories:
+    - "$HOME/.m2/repository"
+
+script: mvn clean test -DtrimStackTrace=false -DuseFile=false

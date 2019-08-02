@@ -35,9 +35,9 @@ import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-public class TransactionIsolatingCacheDecorator implements Cache
+public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
-    private static final Logger logger = LoggerFactory.getLogger(TransactionIsolatingCacheDecorator.class);
+    private static final Logger logger = LoggerFactory.getLogger(EnhancedTransactionAwareCacheDecorator.class);
 
     private final Cache cache;
     private final boolean errorOnUnsafe;
@@ -47,12 +47,12 @@ public class TransactionIsolatingCacheDecorator implements Cache
     private final ThreadLocal<Boolean> transientCleared = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private final ThreadLocal<Boolean> hasSyncSetup = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    public TransactionIsolatingCacheDecorator(final Cache cache)
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache)
     {
         this(cache, true);
     }
 
-    public TransactionIsolatingCacheDecorator(final Cache cache, final boolean errorOnUnsafe)
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe)
     {
         this.cache = cache;
         this.errorOnUnsafe = errorOnUnsafe;

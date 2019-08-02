@@ -31,12 +31,10 @@ import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.etho.cache.spring.TransactionIsolatingCacheDecorator;
-
-@Ignore("This test is hre to illustrate the issues with the default Spring TransactionAwareCacheDecorator")
+@Ignore("This test is here to illustrate the issues with the default Spring TransactionAwareCacheDecorator")
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
-public class DefaultSpringTransactionAwareDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
+public class TransactionAwareDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
 {
     @Before
     public void setup()

@@ -29,16 +29,16 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.etho.cache.spring.TransactionIsolatingCacheDecorator;
+import com.etho.cache.spring.EnhancedTransactionAwareCacheDecorator;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
-public class EnhancedTransactionAwareDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
+public class EnhancedEnhancedTransactionAwareCacheDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
 {
     @Before
     public void setup()
     {
         cacheMap = new ConcurrentHashMap<>();
-        cache = new TransactionIsolatingCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true));
+        cache = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true));
     }
 }

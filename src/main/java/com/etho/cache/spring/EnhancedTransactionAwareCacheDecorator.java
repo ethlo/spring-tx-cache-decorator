@@ -102,19 +102,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public <T> T get(final Object key, final Callable<T> valueLoader)
     {
-        final ValueWrapper transientValue = transientData.get().getTransientCache().get(key);
-        if (transientValue != null)
+        final ValueWrapper res = get(key);
+        if (res != null)
         {
-            return (T) fromStoreValue(transientValue.get());
-        }
-
-        if (!transientData.get().isCacheCleared())
-        {
-            final ValueWrapper cachedData = cache.get(key);
-            if (cachedData != null)
-            {
-                return (T) cachedData.get();
-            }
+            return (T) toStoreValue(res.get());
         }
 
         final T storedData = (T) toStoreValue(new LoadFunction(valueLoader).apply(key));

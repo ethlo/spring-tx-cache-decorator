@@ -21,12 +21,12 @@ Spring's decorator has a massive flaw in that it does not keep cache changes vis
 
 This decorator on the other hand, hold a transient cache for the duration of the transaction, and fetches the data from that before it attempts to fetch data from the actual cache. This allows you to have full caching performance and observerabilty, and still the safety of only merging the transient data to the real cache in case of transaction commit.
 
-| Operation | TransactionAwareCacheDecorator (Spring) | EnhancedTransactionAwareCacheDecorator (This project)|
+| Operation | TransactionAwareCacheDecorator (Spring) | EnhancedTransactionAwareCacheDecorator (This)|
 |------|-----|-----|
 |`put` (new value)|  ![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible| ![#c5f015](https://placehold.it/15/c5f015/000000?text=+) Visible |
 |`put` (existing value)|![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible|![#c5f015](https://placehold.it/15/c5f015/000000?text=+) Visible |
-|evict |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible| ![#c5f015](https://placehold.it/15/c5f015/000000?text=+)Visible|
-|evictAll |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible|![#c5f015](https://placehold.it/15/c5f015/000000?text=+) Visible|
+|`evict` |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible| ![#c5f015](https://placehold.it/15/c5f015/000000?text=+)Visible|
+|`clear` |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible|![#c5f015](https://placehold.it/15/c5f015/000000?text=+) Visible|
 
 
 ## References

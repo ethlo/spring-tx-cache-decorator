@@ -1,5 +1,25 @@
 package com.etho.cache.spring;
 
+/*-
+ * #%L
+ * spring-tx-cache-decorator
+ * %%
+ * Copyright (C) 2018 - 2019 Morten Haraldsen (ethlo)
+ * %%
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * #L%
+ */
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -21,23 +41,21 @@ public class TransactionIsolatingCacheDecorator implements Cache
 
     private final Cache cache;
     private final boolean errorOnUnsafe;
-    private final boolean allowNullValues;
 
     // Important: NOT static as we need one for each cache instance
     private final ThreadLocal<Map<Object, ValueWrapper>> transientCache = ThreadLocal.withInitial(HashMap::new);
-    private final ThreadLocal<Boolean> transientCleared = ThreadLocal.withInitial(()->Boolean.FALSE);
-    private final ThreadLocal<Boolean> hasSyncSetup = ThreadLocal.withInitial(()->Boolean.FALSE);
+    private final ThreadLocal<Boolean> transientCleared = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private final ThreadLocal<Boolean> hasSyncSetup = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     public TransactionIsolatingCacheDecorator(final Cache cache)
     {
-        this(cache, true, true);
+        this(cache, true);
     }
 
-    public TransactionIsolatingCacheDecorator(final Cache cache, final boolean errorOnUnsafe, final boolean allowNullValues)
+    public TransactionIsolatingCacheDecorator(final Cache cache, final boolean errorOnUnsafe)
     {
         this.cache = cache;
         this.errorOnUnsafe = errorOnUnsafe;
-        this.allowNullValues = allowNullValues;
     }
 
     @Override
@@ -68,7 +86,7 @@ public class TransactionIsolatingCacheDecorator implements Cache
         }
         else if (!transientCleared.get())
         {
-            logger.info("Fetching {} from cache", key);
+            logger.debug("Fetching {} from cache", key);
             return cache.get(key);
         }
 
@@ -93,10 +111,13 @@ public class TransactionIsolatingCacheDecorator implements Cache
             return (T) fromStoreValue(transientData.get());
         }
 
-        final ValueWrapper cachedData = cache.get(key);
-        if (cachedData != null)
+        if (! transientCleared.get())
         {
-            return (T) cachedData;
+            final ValueWrapper cachedData = cache.get(key);
+            if (cachedData != null)
+            {
+                return (T) cachedData.get();
+            }
         }
 
         final T storedData = (T) toStoreValue(new LoadFunction(valueLoader).apply(key));
@@ -133,14 +154,13 @@ public class TransactionIsolatingCacheDecorator implements Cache
                     hasSyncSetup.remove();
                 }
             });
+            hasSyncSetup.set(true);
+            logger.debug("Cache sync transaction callback added");
         }
         else
         {
             copyTransient();
         }
-
-        logger.info("Cache sync transaction callback added");
-        hasSyncSetup.set(true);
     }
 
     private void copyTransient()
@@ -154,12 +174,12 @@ public class TransactionIsolatingCacheDecorator implements Cache
         {
             if (entry.getValue().get() == NullValue.INSTANCE)
             {
-                logger.info("Evicting {} from cache {}", entry.getKey(), getName());
+                logger.debug("Evicting {} from cache {}", entry.getKey(), getName());
                 cache.evict(entry.getKey());
             }
             else
             {
-                logger.info("Setting {}={} in cache {}", entry.getKey(), entry.getValue().get(), getName());
+                logger.debug("Setting {}={} in cache {}", entry.getKey(), entry.getValue().get(), getName());
                 cache.put(entry.getKey(), entry.getValue().get());
             }
         }
@@ -226,19 +246,14 @@ public class TransactionIsolatingCacheDecorator implements Cache
     {
         if (userValue == null)
         {
-            if (this.allowNullValues)
-            {
-                return NullValue.INSTANCE;
-            }
-            throw new IllegalArgumentException(
-                    "Cache '" + getName() + "' is configured to not allow null values but null was provided");
+            return NullValue.INSTANCE;
         }
         return userValue;
     }
 
     private Object fromStoreValue(@Nullable Object storeValue)
     {
-        if (this.allowNullValues && storeValue == NullValue.INSTANCE)
+        if (storeValue == NullValue.INSTANCE)
         {
             return null;
         }

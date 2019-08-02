@@ -1,5 +1,33 @@
 package com.ethlo.cache.spring;
 
+/*-
+ * #%L
+ * spring-tx-cache-decorator
+ * %%
+ * Copyright (C) 2018 - 2019 Morten Haraldsen (ethlo)
+ * %%
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * #L%
+ */
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.powermock.api.mockito.PowerMockito.mockStatic;
+
+import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -11,14 +39,6 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.powermock.api.mockito.PowerMockito.mockStatic;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import com.etho.cache.spring.TransactionIsolatingCacheDecorator;
 
@@ -52,6 +72,27 @@ public class TransactionIsolatingCacheDecoratorTest
     }
 
     @Test
+    public void testGetNativeCache()
+    {
+        assertThat(cache.getNativeCache()).isNotNull();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testPerformUnsafePutIfAbsent()
+    {
+        mockTxnManager(true);
+        cache.putIfAbsent("foo", "bar");
+    }
+
+    @Test
+    public void testCacheNull()
+    {
+        mockTxnManager(true);
+        cache.put("foo", null);
+        assertThat(cache.get("foo")).isNull();
+    }
+
+    @Test
     public void testInvokePutInsideTransactionWithRollback()
     {
         mockTxnManager(true);
@@ -69,6 +110,14 @@ public class TransactionIsolatingCacheDecoratorTest
 
         // Make sure the cache does not hold it
         assertThat(cache.get("foo", String.class)).isNull();
+    }
+
+    @Test(expected = Cache.ValueRetrievalException.class)
+    public void testLoadFunctionException()
+    {
+        cache.get("foo", () -> {
+            throw new IOException("Oh noes");
+        });
     }
 
     @Test
@@ -171,9 +220,25 @@ public class TransactionIsolatingCacheDecoratorTest
         assertThat(cache.get("foo")).isNull();
 
         // But the newly added should be
-        assertThat(cache.get("para")).isEqualTo("bel");
+        assertThat(cache.get("para", String.class)).isEqualTo("bel");
     }
 
+    @Test
+    public void testInvokeGetWithLoaderClearInsideTransactionWithCommit()
+    {
+        // Given
+        cache.put("foo", "bar");
+
+        // When
+        mockTxnManager(true);
+
+        // Already has a value in cache ("bar"), so loader not used
+        assertThat(cache.get("foo", () -> "fresh")).isEqualTo("bar");
+
+        cache.clear();
+
+        assertThat(cache.get("foo", () -> "fresh")).isEqualTo("fresh");
+    }
 
     private void mockTransactionEnd(final boolean commit)
     {

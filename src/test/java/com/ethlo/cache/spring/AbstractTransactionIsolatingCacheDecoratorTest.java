@@ -81,6 +81,15 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     }
 
     @Test
+    public void testCacheNullExisting()
+    {
+        cache.put("foo", null);
+
+        mockTxnManager(true);
+        assertThat(cache.get("foo")).isNull();
+    }
+
+    @Test
     public void testInvokePutInsideTransactionWithRollback()
     {
         mockTxnManager(true);

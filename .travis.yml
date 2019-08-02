@@ -10,3 +10,6 @@ cache:
     - "$HOME/.m2/repository"
 
 script: mvn clean test -DtrimStackTrace=false -DuseFile=false
+
+after_success:
+  - mvn clean test jacoco:report coveralls:report

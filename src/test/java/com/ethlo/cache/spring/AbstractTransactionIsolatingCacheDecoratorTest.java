@@ -25,10 +25,8 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -36,25 +34,15 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.Cache;
-import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.etho.cache.spring.TransactionIsolatingCacheDecorator;
-
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
-public class TransactionIsolatingCacheDecoratorTest
+public abstract class AbstractTransactionIsolatingCacheDecoratorTest
 {
-    private ConcurrentMap<Object, Object> cacheMap;
-    private Cache cache;
-
-    @Before
-    public void setup()
-    {
-        cacheMap = new ConcurrentHashMap<>();
-        cache = new TransactionIsolatingCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true));
-    }
+    protected ConcurrentMap<Object, Object> cacheMap;
+    protected Cache cache;
 
     private void mockTxnManager(final boolean active)
     {

@@ -25,8 +25,10 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -34,8 +36,12 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.Cache;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
+import org.springframework.cache.support.NullValue;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import com.etho.cache.spring.EnhancedTransactionAwareCacheDecorator;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
@@ -44,7 +50,7 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     protected ConcurrentMap<Object, Object> cacheMap;
     protected Cache cache;
 
-    private void mockTxnManager(final boolean active)
+    void mockTxnManager(final boolean active)
     {
         mockStatic(TransactionSynchronizationManager.class);
         when(TransactionSynchronizationManager.isSynchronizationActive()).thenReturn(active);
@@ -77,6 +83,13 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(true);
         cache.put("foo", null);
+        assertThat(cache.get("foo")).isNull();
+    }
+
+    @Test
+    public void testCacheExplicitNull()
+    {
+        cache.put("foo", NullValue.INSTANCE);
         assertThat(cache.get("foo")).isNull();
     }
 

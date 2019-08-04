@@ -23,6 +23,7 @@ package com.ethlo.cache.spring;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.junit.Before;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -33,7 +34,7 @@ import com.etho.cache.spring.EnhancedTransactionAwareCacheDecorator;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
-public class EnhancedEnhancedTransactionAwareCacheDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
+public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest
 {
     @Before
     public void setup()
@@ -41,4 +42,14 @@ public class EnhancedEnhancedTransactionAwareCacheDecoratorTest extends Abstract
         cacheMap = new ConcurrentHashMap<>();
         cache = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true));
     }
+
+    @Test
+    public void testPerformUnsafePutIfAbsentAllowed()
+    {
+        cacheMap = new ConcurrentHashMap<>();
+        cache = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true), false);
+        mockTxnManager(true);
+        cache.putIfAbsent("foo", "bar");
+    }
+
 }

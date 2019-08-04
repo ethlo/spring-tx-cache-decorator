@@ -96,7 +96,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public <T> T get(final Object key, final Class<T> type)
     {
-        return Optional.ofNullable(get(key)).map(ValueWrapper::get).map(this::fromNullValue).map(type::cast).orElse(null);
+        return Optional.ofNullable(get(key)).map(ValueWrapper::get).map(type::cast).orElse(null);
     }
 
     @Override
@@ -239,14 +239,5 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 throw new ValueRetrievalException(o, this.valueLoader, ex);
             }
         }
-    }
-
-    private Object fromNullValue(@Nullable Object value)
-    {
-        if (value == NullValue.INSTANCE)
-        {
-            return null;
-        }
-        return value;
     }
 }

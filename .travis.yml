@@ -1,5 +1,5 @@
-dist: xenial
-sudo: required
+#dist: xenial
+#sudo: required
 language: java
 jdk:
   - openjdk8
@@ -12,4 +12,4 @@ cache:
 script: mvn clean test -DtrimStackTrace=false -DuseFile=false
 
 after_success:
-  - mvn clean test jacoco:report coveralls:report
+  - mvn coveralls:report

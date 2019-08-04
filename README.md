@@ -17,9 +17,9 @@ final Cache myWrappedCache = new EnhancedTransactionAwareCacheDecorator(myCache)
 
 ## Why not just use Spring's own [TransactionAwareCacheDecorator](https://docs.spring.io/spring/docs/current/javadoc-api/org/springframework/cache/transaction/TransactionAwareCacheDecorator.html)?
 
-Spring's decorator has a massive flaw in that it does not keep cache changes visible inside the transaction. This means that if you populate your cache using `cache.put("foo", "bar")` and then subsequently perform `cache.get("foo")` you will not get any result. Or more worryingly, if the value was laready set before this transaction started, and you try to update it, you will still see the old value. It is not until after the transaction has committed that the cache returns the correct value. This has two major implications: Potentially performance and definitely visibility/observerability.
+Spring's decorator has a massive flaw in that it does not keep cache changes visible inside the transaction. This means that if you populate your cache using `cache.put("foo", "bar")` and then subsequently perform `cache.get("foo")` you will get a `null` result. Or more worryingly, if the value was already set before this transaction started, you update it, you will still see the old value! It is not until after the transaction has committed that the cache returns the correct value. This has two major implications: Potentially performance (if the cache result is bypassed for each invocation) and definitely visibility/observability.
 
-This decorator on the other hand, hold a transient cache for the duration of the transaction, and fetches the data from that before it attempts to fetch data from the actual cache. This allows you to have full caching performance and observerabilty, and still the safety of only merging the transient data to the real cache in case of transaction commit.
+This decorator on the other hand, hold a transient cache for the duration of the transaction, and fetches the data from that before it attempts to fetch data from the actual cache. This allows you to have full caching performance and observabilty, and still the safety of only merging the transient data to the real cache in case of transaction commit.
 
 | Operation | TransactionAwareCacheDecorator (Spring) | EnhancedTransactionAwareCacheDecorator (This)|
 |------|-----|-----|
@@ -28,6 +28,9 @@ This decorator on the other hand, hold a transient cache for the duration of the
 |`evict` |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible| ![#c5f015](https://placehold.it/15/c5f015/000000?text=+)Visible|
 |`clear` |![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Not visible|![#c5f015](https://placehold.it/15/c5f015/000000?text=+) Visible|
 
+## Will this make my cache transactional?
+No, it will not. The cache will just not be populated with data that is never committed. Also, the cache isolation can be considered `READ COMMITTED`, i.e. if another transaction updates the cache (and commits) it will be instantly visible in all other transactions.
 
 ## References
-https://github.com/spring-projects/spring-framework/issues/17353
+* https://github.com/spring-projects/spring-framework/issues/17353
+* http://commons.apache.org/proper/commons-transaction/apidocs/org/apache/commons/transaction/memory/TransactionalMapWrapper.html

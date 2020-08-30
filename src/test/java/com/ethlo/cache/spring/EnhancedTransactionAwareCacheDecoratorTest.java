@@ -30,8 +30,6 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.etho.cache.spring.EnhancedTransactionAwareCacheDecorator;
-
 @RunWith(PowerMockRunner.class)
 @PrepareForTest(TransactionSynchronizationManager.class)
 public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransactionIsolatingCacheDecoratorTest

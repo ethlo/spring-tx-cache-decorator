@@ -1,4 +1,4 @@
-package com.etho.cache.spring;
+package com.ethlo.cache.spring;
 
 /*-
  * #%L

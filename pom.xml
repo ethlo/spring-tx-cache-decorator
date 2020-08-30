@@ -9,16 +9,16 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <java.version>8</java.version>
         <gpg.skip>true</gpg.skip>
-        <powermock.version>2.0.0</powermock.version>
+        <powermock.version>2.0.7</powermock.version>
     </properties>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.1.6.RELEASE</version>
+        <version>2.3.3.RELEASE</version>
     </parent>
     <groupId>com.ethlo.cache</groupId>
     <artifactId>spring-tx-cache-decorator</artifactId>
-    <version>0.2</version>
+    <version>0.2.1</version>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>3.0.0</version>
+            <version>3.3.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -76,6 +76,12 @@
             <artifactId>logback-classic</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>annotations</artifactId>
+            <version>3.0.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <profiles>
         <profile>
@@ -97,12 +103,12 @@
                     <target>1.8</target>
                     <encoding>UTF-8</encoding>
                 </configuration>
-                <version>3.8.0</version>
+                <version>3.8.1</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.1</version>
+                <version>2.22.2</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -115,12 +121,12 @@
                         </goals>
                     </execution>
                 </executions>
-                <version>3.0.1</version>
+                <version>3.1.0</version>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.4</version>
+                <version>0.8.5</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
@@ -149,18 +155,19 @@
                 <configuration>
                     <doclint>none</doclint>
                     <show>public</show>
+                    <source>8</source>
                 </configuration>
-                <version>3.0.1</version>
+                <version>3.2.0</version>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>versions-maven-plugin</artifactId>
-                <version>2.3</version>
+                <version>2.7</version>
             </plugin>
             <plugin>
                 <groupId>org.sonatype.plugins</groupId>
                 <artifactId>nexus-staging-maven-plugin</artifactId>
-                <version>1.6.5</version>
+                <version>1.6.8</version>
                 <extensions>true</extensions>
                 <configuration>
                     <serverId>sonatype-nexus-staging</serverId>
@@ -188,7 +195,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>license-maven-plugin</artifactId>
-                <version>1.12</version>
+                <version>1.20</version>
                 <configuration>
                     <verbose>false</verbose>
                     <addSvnKeyWords>true</addSvnKeyWords>

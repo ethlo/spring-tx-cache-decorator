@@ -1,4 +1,4 @@
-package com.etho.cache.spring;
+package com.ethlo.cache.spring;
 
 /*-
  * #%L
@@ -85,7 +85,9 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         else if (!tcd.isCacheCleared())
         {
             logger.debug("Fetching {} from cache", key);
-            return Optional.ofNullable(cache.get(key)).filter(v -> !isNull(v)).orElse(null);
+            final ValueWrapper result = Optional.ofNullable(cache.get(key)).filter(v -> !isNull(v)).orElse(new SimpleValueWrapper(null));
+            tcd.getTransientCache().put(key, result);
+            return isNull(result) ? null : result;
         }
 
         // Cleared

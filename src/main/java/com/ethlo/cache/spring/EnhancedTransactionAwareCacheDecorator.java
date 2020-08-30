@@ -20,11 +20,6 @@ package com.ethlo.cache.spring;
  * #L%
  */
 
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.function.Function;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
@@ -33,6 +28,11 @@ import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
@@ -85,9 +85,8 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         else if (!tcd.isCacheCleared())
         {
             logger.debug("Fetching {} from cache", key);
-            final ValueWrapper result = Optional.ofNullable(cache.get(key)).filter(v -> !isNull(v)).orElse(new SimpleValueWrapper(null));
-            tcd.getTransientCache().put(key, result);
-            return isNull(result) ? null : result;
+            final ValueWrapper fromRealCache = cache.get(key);
+            return Optional.ofNullable(fromRealCache).filter(v -> !isNull(v)).orElse(null);
         }
 
         // Cleared
@@ -113,9 +112,15 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
         final T storedData = (T) new LoadFunction(valueLoader).apply(key);
         final TransientCacheData tcd = transientData.get();
-        tcd.getTransientCache().put(key, new SimpleValueWrapper(storedData));
 
-        cacheSync();
+        try
+        {
+            tcd.getTransientCache().put(key, new SimpleValueWrapper(storedData));
+        }
+        finally
+        {
+            cacheSync();
+        }
 
         return storedData;
     }
@@ -143,6 +148,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 public void afterCompletion(final int status)
                 {
                     transientData.remove();
+                    logger.debug("Transaction completed. Cleared transient data");
                 }
             });
             tcd.syncSetup();
@@ -170,7 +176,8 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
         for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
         {
-            if (entry.getValue().get() == NullValue.INSTANCE)
+            final Object value = entry.getValue().get();
+            if (value == NullValue.INSTANCE)
             {
                 logger.debug("Evicting {} from cache {}", entry.getKey(), getName());
                 cache.evict(entry.getKey());
@@ -188,8 +195,14 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     public void put(final Object key, final Object value)
     {
         final TransientCacheData tcd = transientData.get();
-        tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
-        cacheSync();
+        try
+        {
+            tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
+        }
+        finally
+        {
+            cacheSync();
+        }
     }
 
     @Override
@@ -207,17 +220,29 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     public void evict(final Object key)
     {
         final TransientCacheData tcd = transientData.get();
-        tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
-        cacheSync();
+        try
+        {
+            tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
+        }
+        finally
+        {
+            cacheSync();
+        }
     }
 
     @Override
     public void clear()
     {
         final TransientCacheData tcd = transientData.get();
-        tcd.cleared();
-        tcd.getTransientCache().clear();
-        cacheSync();
+        try
+        {
+            tcd.cleared();
+            tcd.getTransientCache().clear();
+        }
+        finally
+        {
+            cacheSync();
+        }
     }
 
     private class LoadFunction implements Function<Object, Object>

@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.NullValue;
 import org.springframework.cache.support.SimpleValueWrapper;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -47,7 +48,17 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache)
     {
-        this(cache, true, true);
+        this(cache, true, false);
+    }
+
+    /**
+     *
+     * @param cache The cache to delegate to
+     * @param cacheCacheResult Whether to cache the result from the delegate cache result until the end of the transaction
+     */
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean cacheCacheResult)
+    {
+        this(cache, true, cacheCacheResult);
     }
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe, final boolean cacheCacheResult)
@@ -58,20 +69,20 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     @Override
-    public String getName()
+    public @NonNull String getName()
     {
         return cache.getName();
     }
 
     @Override
-    public Object getNativeCache()
+    public @NonNull Object getNativeCache()
     {
         return cache.getNativeCache();
     }
 
     @Override
     @Nullable
-    public ValueWrapper get(final Object key)
+    public ValueWrapper get(@NonNull final Object key)
     {
         final TransientCacheData tcd = transientData.get();
         final ValueWrapper res = tcd.getTransientCache().get(key);
@@ -112,14 +123,14 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     @Override
     @Nullable
-    public <T> T get(final Object key, final Class<T> type)
+    public <T> T get(final @NonNull Object key, final Class<T> type)
     {
-        return Optional.ofNullable(get(key)).map(ValueWrapper::get).map(type::cast).orElse(null);
+        return (T) Optional.ofNullable(get(key)).map(ValueWrapper::get).orElse(null);
     }
 
     @Override
     @Nullable
-    public <T> T get(final Object key, final Callable<T> valueLoader)
+    public <T> T get(final @NonNull Object key, final @NonNull Callable<T> valueLoader)
     {
         final ValueWrapper res = get(key);
         if (res != null)
@@ -208,7 +219,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     @Override
-    public void put(final Object key, final Object value)
+    public void put(final @NonNull Object key, final Object value)
     {
         final TransientCacheData tcd = transientData.get();
         try
@@ -222,7 +233,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     @Override
     @Nullable
-    public ValueWrapper putIfAbsent(final Object key, final Object value)
+    public ValueWrapper putIfAbsent(final @NonNull Object key, final Object value)
     {
         if (errorOnUnsafe)
         {
@@ -232,7 +243,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     @Override
-    public void evict(final Object key)
+    public void evict(final @NonNull Object key)
     {
         final TransientCacheData tcd = transientData.get();
         try
@@ -258,7 +269,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
     }
 
-    private class LoadFunction implements Function<Object, Object>
+    private static class LoadFunction implements Function<Object, Object>
     {
         private final Callable<?> valueLoader;
 

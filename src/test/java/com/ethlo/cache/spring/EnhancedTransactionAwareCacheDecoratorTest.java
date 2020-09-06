@@ -45,7 +45,7 @@ public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransact
     public void testPerformUnsafePutIfAbsentAllowed()
     {
         cacheMap = new ConcurrentHashMap<>();
-        cache = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true), false);
+        cache = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true), false, true);
         mockTxnManager(true);
         cache.putIfAbsent("foo", "bar");
     }

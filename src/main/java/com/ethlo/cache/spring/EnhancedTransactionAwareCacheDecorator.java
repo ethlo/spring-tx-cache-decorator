@@ -20,6 +20,11 @@ package com.ethlo.cache.spring;
  * #L%
  */
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Function;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
@@ -28,11 +33,6 @@ import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.function.Function;
 
 public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
@@ -43,16 +43,18 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     // Important: NOT static as we need one for each cache instance
     private final ThreadLocal<TransientCacheData> transientData = ThreadLocal.withInitial(TransientCacheData::new);
+    private final boolean cacheCacheResult;
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache)
     {
-        this(cache, true);
+        this(cache, true, true);
     }
 
-    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe)
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe, final boolean cacheCacheResult)
     {
         this.cache = cache;
         this.errorOnUnsafe = errorOnUnsafe;
+        this.cacheCacheResult = cacheCacheResult;
     }
 
     @Override
@@ -86,7 +88,22 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             logger.debug("Fetching {} from cache", key);
             final ValueWrapper fromRealCache = cache.get(key);
-            return Optional.ofNullable(fromRealCache).filter(v -> !isNull(v)).orElse(null);
+
+            final ValueWrapper result = Optional.ofNullable(fromRealCache).map(ValueWrapper::get).map(ReadOnlyValueWrapper::new).filter(v -> !isNull(v)).orElse(new ReadOnlyValueWrapper(null));
+
+            if (cacheCacheResult)
+            {
+                try
+                {
+                    // Avoid the underlying cache being utilized again for this transaction
+                    tcd.getTransientCache().put(key, result);
+                } finally
+                {
+                    cacheSync();
+                }
+            }
+
+            return isNull(result) ? null : result;
         }
 
         // Cleared
@@ -116,8 +133,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(storedData));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -198,8 +214,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -223,8 +238,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -238,8 +252,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             tcd.cleared();
             tcd.getTransientCache().clear();
-        }
-        finally
+        } finally
         {
             cacheSync();
         }

@@ -203,16 +203,18 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
         for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
         {
-            final Object value = entry.getValue().get();
+            final Object key = entry.getKey();
+            final ValueWrapper valueWrapper = entry.getValue();
+            final Object value = valueWrapper.get();
             if (value == NullValue.INSTANCE)
             {
-                logger.debug("Evicting {} from cache {}", entry.getKey(), getName());
-                cache.evict(entry.getKey());
+                logger.debug("Evicting {} from cache {}", key, getName());
+                cache.evict(key);
             }
-            else
+            else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
             {
-                logger.debug("Setting {}={} in cache {}", entry.getKey(), entry.getValue().get(), getName());
-                cache.put(entry.getKey(), entry.getValue().get());
+                logger.debug("Setting {}={} in cache {}", key, value, getName());
+                cache.put(key, value);
             }
         }
         tcd.getTransientCache().clear();

@@ -20,19 +20,20 @@ package com.ethlo.cache.spring;
  * #L%
  */
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Function;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.NullValue;
 import org.springframework.cache.support.SimpleValueWrapper;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.function.Function;
 
 public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
@@ -43,33 +44,45 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     // Important: NOT static as we need one for each cache instance
     private final ThreadLocal<TransientCacheData> transientData = ThreadLocal.withInitial(TransientCacheData::new);
+    private final boolean cacheCacheResult;
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache)
     {
-        this(cache, true);
+        this(cache, true, false);
     }
 
-    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe)
+    /**
+     *
+     * @param cache The cache to delegate to
+     * @param cacheCacheResult Whether to cache the result from the delegate cache result until the end of the transaction
+     */
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean cacheCacheResult)
+    {
+        this(cache, true, cacheCacheResult);
+    }
+
+    public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe, final boolean cacheCacheResult)
     {
         this.cache = cache;
         this.errorOnUnsafe = errorOnUnsafe;
+        this.cacheCacheResult = cacheCacheResult;
     }
 
     @Override
-    public String getName()
+    public @NonNull String getName()
     {
         return cache.getName();
     }
 
     @Override
-    public Object getNativeCache()
+    public @NonNull Object getNativeCache()
     {
         return cache.getNativeCache();
     }
 
     @Override
     @Nullable
-    public ValueWrapper get(final Object key)
+    public ValueWrapper get(@NonNull final Object key)
     {
         final TransientCacheData tcd = transientData.get();
         final ValueWrapper res = tcd.getTransientCache().get(key);
@@ -86,7 +99,22 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             logger.debug("Fetching {} from cache", key);
             final ValueWrapper fromRealCache = cache.get(key);
-            return Optional.ofNullable(fromRealCache).filter(v -> !isNull(v)).orElse(null);
+
+            final ValueWrapper result = Optional.ofNullable(fromRealCache).map(ValueWrapper::get).map(ReadOnlyValueWrapper::new).filter(v -> !isNull(v)).orElse(new ReadOnlyValueWrapper(null));
+
+            if (cacheCacheResult)
+            {
+                try
+                {
+                    // Avoid the underlying cache being utilized again for this transaction
+                    tcd.getTransientCache().put(key, result);
+                } finally
+                {
+                    cacheSync();
+                }
+            }
+
+            return isNull(result) ? null : result;
         }
 
         // Cleared
@@ -95,14 +123,14 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     @Override
     @Nullable
-    public <T> T get(final Object key, final Class<T> type)
+    public <T> T get(final @NonNull Object key, final Class<T> type)
     {
-        return Optional.ofNullable(get(key)).map(ValueWrapper::get).map(type::cast).orElse(null);
+        return (T) Optional.ofNullable(get(key)).map(ValueWrapper::get).orElse(null);
     }
 
     @Override
     @Nullable
-    public <T> T get(final Object key, final Callable<T> valueLoader)
+    public <T> T get(final @NonNull Object key, final @NonNull Callable<T> valueLoader)
     {
         final ValueWrapper res = get(key);
         if (res != null)
@@ -116,8 +144,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(storedData));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -176,30 +203,31 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
         for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
         {
-            final Object value = entry.getValue().get();
+            final Object key = entry.getKey();
+            final ValueWrapper valueWrapper = entry.getValue();
+            final Object value = valueWrapper.get();
             if (value == NullValue.INSTANCE)
             {
-                logger.debug("Evicting {} from cache {}", entry.getKey(), getName());
-                cache.evict(entry.getKey());
+                logger.debug("Evicting {} from cache {}", key, getName());
+                cache.evict(key);
             }
-            else
+            else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
             {
-                logger.debug("Setting {}={} in cache {}", entry.getKey(), entry.getValue().get(), getName());
-                cache.put(entry.getKey(), entry.getValue().get());
+                logger.debug("Setting {}={} in cache {}", key, value, getName());
+                cache.put(key, value);
             }
         }
         tcd.getTransientCache().clear();
     }
 
     @Override
-    public void put(final Object key, final Object value)
+    public void put(final @NonNull Object key, final Object value)
     {
         final TransientCacheData tcd = transientData.get();
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -207,7 +235,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     @Override
     @Nullable
-    public ValueWrapper putIfAbsent(final Object key, final Object value)
+    public ValueWrapper putIfAbsent(final @NonNull Object key, final Object value)
     {
         if (errorOnUnsafe)
         {
@@ -217,14 +245,13 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     @Override
-    public void evict(final Object key)
+    public void evict(final @NonNull Object key)
     {
         final TransientCacheData tcd = transientData.get();
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
@@ -238,14 +265,13 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             tcd.cleared();
             tcd.getTransientCache().clear();
-        }
-        finally
+        } finally
         {
             cacheSync();
         }
     }
 
-    private class LoadFunction implements Function<Object, Object>
+    private static class LoadFunction implements Function<Object, Object>
     {
         private final Callable<?> valueLoader;
 

@@ -34,6 +34,7 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.Cache;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.cache.support.NullValue;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -42,8 +43,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @PrepareForTest(TransactionSynchronizationManager.class)
 public abstract class AbstractTransactionIsolatingCacheDecoratorTest
 {
-    protected ConcurrentMap<Object, Object> cacheMap;
-    protected Cache cache;
+    protected ConcurrentMap<Object, Object> realCache;
+    protected Cache decorator;
 
     void mockTxnManager(final boolean active)
     {
@@ -56,45 +57,45 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(false);
         assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(false);
-        cache.put("foo", "bar");
-        assertThat(cacheMap).containsEntry("foo", "bar");
+        decorator.put("foo", "bar");
+        assertThat(realCache).containsEntry("foo", "bar");
     }
 
     @Test
     public void testGetNativeCache()
     {
-        assertThat(cache.getNativeCache()).isNotNull();
+        assertThat(decorator.getNativeCache()).isNotNull();
     }
 
     @Test(expected = IllegalStateException.class)
     public void testPerformUnsafePutIfAbsent()
     {
         mockTxnManager(true);
-        cache.putIfAbsent("foo", "bar");
+        decorator.putIfAbsent("foo", "bar");
     }
 
     @Test
     public void testCacheNull()
     {
         mockTxnManager(true);
-        cache.put("foo", null);
-        assertThat(cache.get("foo")).isNull();
+        decorator.put("foo", null);
+        assertThat(decorator.get("foo")).isNull();
     }
 
     @Test
     public void testCacheExplicitNull()
     {
-        cache.put("foo", NullValue.INSTANCE);
-        assertThat(cache.get("foo")).isNull();
+        decorator.put("foo", NullValue.INSTANCE);
+        assertThat(decorator.get("foo")).isNull();
     }
 
     @Test
     public void testCacheNullExisting()
     {
-        cache.put("foo", null);
+        decorator.put("foo", null);
 
         mockTxnManager(true);
-        assertThat(cache.get("foo")).isNull();
+        assertThat(decorator.get("foo")).isNull();
     }
 
     @Test
@@ -102,25 +103,52 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(true);
         assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(true);
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // Make sure the transient cache holds this
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
 
         // Should not yet be in the cache itself
-        assertThat(cacheMap).doesNotContainKeys("foo");
+        assertThat(realCache).doesNotContainKeys("foo");
 
         // Rollback
         mockTransactionEnd(false);
 
         // Make sure the cache does not hold it
-        assertThat(cache.get("foo", String.class)).isNull();
+        assertThat(decorator.get("foo", String.class)).isNull();
+    }
+
+    @Test
+    public void testInvokeSecondGetInsideTransaction()
+    {
+        mockTxnManager(true);
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(true);
+
+        // Cache real cache values avoiding second round-trip to real cache
+        decorator = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCache, true), true);
+
+        // When value in real cache
+        realCache.put("foo", "bar");
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+
+        // Clear real cache
+        realCache.clear();
+        assertThat(realCache).doesNotContainKeys("foo");
+
+        // Make sure the transient cache holds this still (it should be cached in decorator)
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+
+        // Commit
+        mockTransactionEnd(true);
+
+        // Make sure the cache does not hold it
+        assertThat(decorator.get("foo", String.class)).isNull();
     }
 
     @Test(expected = Cache.ValueRetrievalException.class)
     public void testLoadFunctionException()
     {
-        cache.get("foo", () -> {
+        decorator.get("foo", () -> {
             throw new IOException("Oh noes");
         });
     }
@@ -130,119 +158,119 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(true);
         assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(true);
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // Make sure the transient cache holds this
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
 
         // Should not yet be in the cache itself
-        assertThat(cacheMap).doesNotContainKeys("foo");
+        assertThat(realCache).doesNotContainKeys("foo");
 
         // Commit
         mockTransactionEnd(true);
 
         // Make sure the cache now holds the value
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
     }
 
     @Test
     public void testInvokeEvictInsideTransactionWithCommit()
     {
         // Given
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // When
         mockTxnManager(true);
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
-        cache.evict("foo");
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+        decorator.evict("foo");
 
         // Then
         // Should still be in the cache itself
-        assertThat(cacheMap).containsKey("foo");
+        assertThat(realCache).containsKey("foo");
 
         // But should not be available in the cache
-        assertThat(cache.get("foo")).isNull();
+        assertThat(decorator.get("foo")).isNull();
 
         // Commit
         mockTransactionEnd(true);
 
         // After commit, should be in neither
-        assertThat(cacheMap).doesNotContainKeys("foo");
-        assertThat(cache.get("foo")).isNull();
+        assertThat(realCache).doesNotContainKeys("foo");
+        assertThat(decorator.get("foo")).isNull();
     }
 
     @Test
     public void testInvokeClearInsideTransactionWithCommit()
     {
         // Given
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // When
         mockTxnManager(true);
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
-        cache.clear();
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+        decorator.clear();
 
         // Then
         // Should still be in the cache itself
-        assertThat(cacheMap).containsKey("foo");
+        assertThat(realCache).containsKey("foo");
 
         // But should not be available in the cache
-        assertThat(cache.get("foo")).isNull();
+        assertThat(decorator.get("foo")).isNull();
 
         // Commit
         mockTransactionEnd(true);
 
         // After commit, should be in neither
-        assertThat(cacheMap).doesNotContainKeys("foo");
-        assertThat(cache.get("foo")).isNull();
+        assertThat(realCache).doesNotContainKeys("foo");
+        assertThat(decorator.get("foo")).isNull();
     }
 
     @Test
     public void testInvokeClearInsideTransactionWithPutsAndCommit()
     {
         // Given
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // When
         mockTxnManager(true);
-        assertThat(cache.get("foo", String.class)).isEqualTo("bar");
-        cache.clear();
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+        decorator.clear();
 
         // Then
         // Should still be in the cache itself
-        assertThat(cacheMap).containsKey("foo");
+        assertThat(realCache).containsKey("foo");
 
         // But should not be available in the cache
-        assertThat(cache.get("foo")).isNull();
+        assertThat(decorator.get("foo")).isNull();
 
-        cache.put("para", "bel");
+        decorator.put("para", "bel");
 
         // Commit
         mockTransactionEnd(true);
 
         // After commit, should be in neither
-        assertThat(cacheMap).doesNotContainKeys("foo");
-        assertThat(cache.get("foo")).isNull();
+        assertThat(realCache).doesNotContainKeys("foo");
+        assertThat(decorator.get("foo")).isNull();
 
         // But the newly added should be
-        assertThat(cache.get("para", String.class)).isEqualTo("bel");
+        assertThat(decorator.get("para", String.class)).isEqualTo("bel");
     }
 
     @Test
     public void testInvokeGetWithLoaderClearInsideTransactionWithCommit()
     {
         // Given
-        cache.put("foo", "bar");
+        decorator.put("foo", "bar");
 
         // When
         mockTxnManager(true);
 
         // Already has a value in cache ("bar"), so loader not used
-        assertThat(cache.get("foo", () -> "fresh")).isEqualTo("bar");
+        assertThat(decorator.get("foo", () -> "fresh")).isEqualTo("bar");
 
-        cache.clear();
+        decorator.clear();
 
-        assertThat(cache.get("foo", () -> "fresh")).isEqualTo("fresh");
+        assertThat(decorator.get("foo", () -> "fresh")).isEqualTo("fresh");
     }
 
     private void mockTransactionEnd(final boolean commit)

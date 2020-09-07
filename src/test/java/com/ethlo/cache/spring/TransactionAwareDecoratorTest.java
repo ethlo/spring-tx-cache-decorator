@@ -39,7 +39,7 @@ public class TransactionAwareDecoratorTest extends AbstractTransactionIsolatingC
     @Before
     public void setup()
     {
-        cacheMap = new ConcurrentHashMap<>();
-        cache = new TransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", cacheMap, true));
+        realCache = new ConcurrentHashMap<>();
+        decorator = new TransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCache, true));
     }
 }

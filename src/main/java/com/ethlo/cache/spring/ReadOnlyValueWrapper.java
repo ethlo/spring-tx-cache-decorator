@@ -23,7 +23,7 @@ package com.ethlo.cache.spring;
 import org.springframework.cache.support.SimpleValueWrapper;
 
 /**
- * Marker for not writing the value back to the underlying cache (as this value came from the cache with read operation)
+ * Marker for not writing the value back to the delegate cache (as this value came from the cache with read operation)
  */
 public class ReadOnlyValueWrapper extends SimpleValueWrapper
 {

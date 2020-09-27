@@ -100,7 +100,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
         else if (!tcd.isCacheCleared())
         {
-            logger.debug("Fetching {} from underlying cache {}", key, cache.getName());
+            logger.debug("Fetching {} from delegate cache {}", key, cache.getName());
             final ValueWrapper fromRealCache = cache.get(key);
             final ValueWrapper result = Optional.ofNullable(fromRealCache).map(ValueWrapper::get).map(ReadOnlyValueWrapper::new).filter(v -> !isNull(v)).orElse(new ReadOnlyValueWrapper(null));
 
@@ -108,7 +108,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
             {
                 try
                 {
-                    // Avoid the underlying cache being utilized again for this transaction
+                    // Avoid the delegate cache being utilized again for this transaction
                     tcd.getTransientCache().put(key, result);
                 } finally
                 {
@@ -171,7 +171,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                     @Override
                     public void afterCommit()
                     {
-                        logger.debug("Transaction commit. Copying to underlying cache");
+                        logger.debug("Transaction commit. Copying to delegate cache");
                         copyTransient();
                     }
 
@@ -214,12 +214,12 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 final Object value = valueWrapper.get();
                 if (value == NullValue.INSTANCE)
                 {
-                    logger.debug("Evicting {} from underlying cache {}", key, getName());
+                    logger.debug("Evicting {} from delegate cache {}", key, getName());
                     cache.evict(key);
                 }
                 else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
                 {
-                    logger.debug("Setting {}={} in underlying cache {}", key, value, getName());
+                    logger.debug("Setting {}={} in delegate cache {}", key, value, getName());
                     cache.put(key, value);
                 }
             }

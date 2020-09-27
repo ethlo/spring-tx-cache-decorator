@@ -31,4 +31,10 @@ public class ReadOnlyValueWrapper extends SimpleValueWrapper
     {
         super(value);
     }
+
+    @Override
+    public String toString()
+    {
+        return "ReadOnlyValueWrapper{" + get() + "}";
+    }
 }

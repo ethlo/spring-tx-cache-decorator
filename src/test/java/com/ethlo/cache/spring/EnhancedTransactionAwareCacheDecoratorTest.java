@@ -37,6 +37,7 @@ public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransact
     @Before
     public void setup()
     {
+        EnhancedTransactionAwareCacheDecorator.reset();
         realCache = new ConcurrentHashMap<>();
         decorator = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCache, true));
     }

@@ -38,12 +38,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
     private static final Logger logger = LoggerFactory.getLogger(EnhancedTransactionAwareCacheDecorator.class);
-
+    private static final ThreadLocal<TransactionCacheState> transientData = ThreadLocal.withInitial(TransactionCacheState::new);
     private final Cache cache;
     private final boolean errorOnUnsafe;
-
-    // Important: NOT static as we need one for each cache instance
-    private final ThreadLocal<TransientCacheData> transientData = ThreadLocal.withInitial(TransientCacheData::new);
     private final boolean cacheCacheResult;
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache)
@@ -52,8 +49,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     /**
-     *
-     * @param cache The cache to delegate to
+     * @param cache            The cache to delegate to
      * @param cacheCacheResult Whether to cache the result from the delegate cache result until the end of the transaction
      */
     public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean cacheCacheResult)
@@ -68,14 +64,21 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         this.cacheCacheResult = cacheCacheResult;
     }
 
+    public static void reset()
+    {
+        transientData.remove();
+    }
+
     @Override
-    public @NonNull String getName()
+    public @NonNull
+    String getName()
     {
         return cache.getName();
     }
 
     @Override
-    public @NonNull Object getNativeCache()
+    public @NonNull
+    Object getNativeCache()
     {
         return cache.getNativeCache();
     }
@@ -84,7 +87,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public ValueWrapper get(@NonNull final Object key)
     {
-        final TransientCacheData tcd = transientData.get();
+        final TransientCacheData tcd = tcd();
         final ValueWrapper res = tcd.getTransientCache().get(key);
         if (res != null && isNull(res))
         {
@@ -97,16 +100,15 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
         else if (!tcd.isCacheCleared())
         {
-            logger.debug("Fetching {} from cache", key);
+            logger.debug("Fetching {} from delegate cache {}", key, cache.getName());
             final ValueWrapper fromRealCache = cache.get(key);
-
             final ValueWrapper result = Optional.ofNullable(fromRealCache).map(ValueWrapper::get).map(ReadOnlyValueWrapper::new).filter(v -> !isNull(v)).orElse(new ReadOnlyValueWrapper(null));
 
             if (cacheCacheResult)
             {
                 try
                 {
-                    // Avoid the underlying cache being utilized again for this transaction
+                    // Avoid the delegate cache being utilized again for this transaction
                     tcd.getTransientCache().put(key, result);
                 } finally
                 {
@@ -119,6 +121,12 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
         // Cleared
         return null;
+    }
+
+    private TransientCacheData tcd()
+    {
+        logger.trace("Getting transient cache for {}", cache.getName());
+        return transientData.get().get(cache.getName());
     }
 
     @Override
@@ -139,7 +147,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
 
         final T storedData = (T) new LoadFunction(valueLoader).apply(key);
-        final TransientCacheData tcd = transientData.get();
+        final TransientCacheData tcd = tcd();
 
         try
         {
@@ -154,35 +162,33 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     private void cacheSync()
     {
-        final TransientCacheData tcd = transientData.get();
-        if (tcd.isSyncSetup())
-        {
-            logger.debug("Cache sync transaction already set up. Skipping");
-            return;
-        }
-
         if (TransactionSynchronizationManager.isSynchronizationActive())
         {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter()
+            if (!transientData.get().isSyncSetup())
             {
-                @Override
-                public void afterCommit()
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter()
                 {
-                    copyTransient();
-                }
+                    @Override
+                    public void afterCommit()
+                    {
+                        logger.debug("Transaction commit. Copying to delegate cache");
+                        copyTransient();
+                    }
 
-                @Override
-                public void afterCompletion(final int status)
-                {
-                    transientData.remove();
-                    logger.debug("Transaction completed. Cleared transient data");
-                }
-            });
-            tcd.syncSetup();
-            logger.debug("Cache sync transaction callback added");
+                    @Override
+                    public void afterCompletion(final int status)
+                    {
+                        transientData.remove();
+                        logger.debug("Transaction completed. Cleared transient data for cache {}", cache.getName());
+                    }
+                });
+                transientData.get().syncSetup();
+                logger.debug("Cache sync transaction callback added");
+            }
         }
         else
         {
+            logger.debug("Sync outside of active transaction for cache {}", cache.getName());
             copyTransient();
         }
     }
@@ -194,36 +200,38 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     private void copyTransient()
     {
-        final TransientCacheData tcd = transientData.get();
-
-        if (tcd.isCacheCleared())
+        transientData.get().transientCaches().forEach((name, tcd) ->
         {
-            cache.clear();
-        }
+            if (tcd.isCacheCleared())
+            {
+                cache.clear();
+            }
 
-        for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
-        {
-            final Object key = entry.getKey();
-            final ValueWrapper valueWrapper = entry.getValue();
-            final Object value = valueWrapper.get();
-            if (value == NullValue.INSTANCE)
+            for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
             {
-                logger.debug("Evicting {} from cache {}", key, getName());
-                cache.evict(key);
+                final Object key = entry.getKey();
+                final ValueWrapper valueWrapper = entry.getValue();
+                final Object value = valueWrapper.get();
+                if (value == NullValue.INSTANCE)
+                {
+                    logger.debug("Evicting {} from delegate cache {}", key, getName());
+                    cache.evict(key);
+                }
+                else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
+                {
+                    logger.debug("Setting {}={} in delegate cache {}", key, value, getName());
+                    cache.put(key, value);
+                }
             }
-            else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
-            {
-                logger.debug("Setting {}={} in cache {}", key, value, getName());
-                cache.put(key, value);
-            }
-        }
-        tcd.getTransientCache().clear();
+
+            tcd.getTransientCache().clear();
+        });
     }
 
     @Override
     public void put(final @NonNull Object key, final Object value)
     {
-        final TransientCacheData tcd = transientData.get();
+        final TransientCacheData tcd = tcd();
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
@@ -247,7 +255,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void evict(final @NonNull Object key)
     {
-        final TransientCacheData tcd = transientData.get();
+        final TransientCacheData tcd = tcd();
         try
         {
             tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
@@ -260,7 +268,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void clear()
     {
-        final TransientCacheData tcd = transientData.get();
+        final TransientCacheData tcd = tcd();
         try
         {
             tcd.cleared();

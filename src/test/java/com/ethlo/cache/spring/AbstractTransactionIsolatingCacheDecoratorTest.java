@@ -200,6 +200,48 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     }
 
     @Test
+    public void testInvokeEvictOfOldValueAndPuttingNewInsideTransactionIsUpdated()
+    {
+        decorator.put("foo", "bar");
+
+        // Given
+        mockTxnManager(true);
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+
+        decorator.put("foo", "baz");
+
+        assertThat(decorator.get("foo").get()).isEqualTo("baz");
+
+        // Commit
+        mockTransactionEnd(false);
+
+        // After rollback, should be back to before transaction
+        assertThat(realCache).containsEntry("foo", "bar");
+        assertThat(decorator.get("foo").get()).isEqualTo("bar");
+    }
+
+    public void testInvokeEvictOfOldValueAndPuttingNewInsideTransactionIsUpdatedOnCommit()
+    {
+        decorator.put("foo", "bar");
+
+        // Given
+        mockTxnManager(true);
+        assertThat(decorator.get("foo", String.class)).isEqualTo("bar");
+        decorator.evict("foo");
+
+        decorator.put("foo", "baz");
+
+        assertThat(decorator.get("foo").get()).isEqualTo("baz");
+
+        // Commit
+        mockTransactionEnd(true);
+
+        // After commit, should be as before transaction
+        assertThat(realCache).containsEntry("foo", "baz");
+        assertThat(decorator.get("foo").get()).isEqualTo("baz");
+    }
+
+    @Test
     public void testInvokeClearInsideTransactionWithCommit()
     {
         // Given
@@ -253,7 +295,7 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
         assertThat(decorator.get("foo")).isNull();
 
         // But the newly added should be
-        assertThat(decorator.get("para", String.class)).isEqualTo("bel");
+        assertThat(realCache.get("para")).isEqualTo("bel");
     }
 
     @Test

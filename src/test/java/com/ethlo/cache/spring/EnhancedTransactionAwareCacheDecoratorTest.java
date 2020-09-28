@@ -38,17 +38,19 @@ public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransact
     public void setup()
     {
         EnhancedTransactionAwareCacheDecorator.reset();
-        realCache = new ConcurrentHashMap<>();
-        decorator = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCache, true));
+        realCacheA = new ConcurrentHashMap<>();
+        realCacheB = new ConcurrentHashMap<>();
+        decoratorA = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache-a", realCacheA, true));
+        decoratorB = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache-b", realCacheB, true));
     }
 
     @Test
     public void testPerformUnsafePutIfAbsentAllowed()
     {
-        realCache = new ConcurrentHashMap<>();
-        decorator = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCache, true), false, true);
+        realCacheA = new ConcurrentHashMap<>();
+        decoratorA = new EnhancedTransactionAwareCacheDecorator(new ConcurrentMapCache("my-cache", realCacheA, true), false, true);
         mockTxnManager(true);
-        decorator.putIfAbsent("foo", "bar");
+        decoratorA.putIfAbsent("foo", "bar");
     }
 
 }

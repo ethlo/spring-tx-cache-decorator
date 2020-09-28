@@ -28,15 +28,21 @@ import org.springframework.cache.Cache;
 public class TransientCacheData
 {
     private final Map<Object, Cache.ValueWrapper> transientCache = new ConcurrentHashMap<>();
+    private final Cache delegate;
 
     private boolean isCleared = false;
 
-    public boolean isCacheCleared()
+    public TransientCacheData(Cache delegate)
+    {
+        this.delegate = delegate;
+    }
+
+    public boolean isCleared()
     {
         return isCleared;
     }
 
-    public void cleared()
+    public void setCleared()
     {
         isCleared = true;
     }
@@ -44,5 +50,10 @@ public class TransientCacheData
     public Map<Object, Cache.ValueWrapper> getTransientCache()
     {
         return this.transientCache;
+    }
+
+    public Cache getDelegate()
+    {
+        return delegate;
     }
 }

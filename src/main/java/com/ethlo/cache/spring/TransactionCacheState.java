@@ -23,6 +23,8 @@ package com.ethlo.cache.spring;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.cache.Cache;
+
 public class TransactionCacheState
 {
     private final Map<String, TransientCacheData> transientCaches = new HashMap<>();
@@ -34,14 +36,14 @@ public class TransactionCacheState
         return hasSyncSetup;
     }
 
-    public void syncSetup()
+    public void setupCacheSynchronizationCallback()
     {
         this.hasSyncSetup = true;
     }
 
-    public TransientCacheData get(final String cacheName)
+    public TransientCacheData get(final Cache cache)
     {
-        return transientCaches.computeIfAbsent(cacheName, (key) -> new TransientCacheData());
+        return transientCaches.computeIfAbsent(cache.getName(), (key) -> new TransientCacheData(cache));
     }
 
     public Map<String, TransientCacheData> transientCaches()

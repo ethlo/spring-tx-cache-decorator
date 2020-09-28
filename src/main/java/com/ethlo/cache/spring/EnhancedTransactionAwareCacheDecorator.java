@@ -64,9 +64,82 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         this.cacheCacheResult = cacheCacheResult;
     }
 
+    /**
+     * Removes any transient data without any attempt to synchronize to delegate cache(s)
+     */
     public static void reset()
     {
         transientData.remove();
+    }
+
+    private static void setupSyncToDelegateCaches()
+    {
+        if (TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            if (!transientData.get().isSyncSetup())
+            {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter()
+                {
+                    @Override
+                    public void afterCommit()
+                    {
+                        logger.debug("Transaction commit. Copying to delegate cache");
+                        copyTransientToDelegateCaches();
+                    }
+
+                    @Override
+                    public void afterCompletion(final int status)
+                    {
+                        transientData.remove();
+                        logger.debug("Transaction completed. Cleared transient data");
+                    }
+                });
+                transientData.get().setupCacheSynchronizationCallback();
+                logger.debug("Transaction synchronization callback added");
+            }
+        }
+        else
+        {
+            logger.debug("Cache manipulation outside of an active transaction");
+            copyTransientToDelegateCaches();
+        }
+    }
+
+    private static boolean isNull(ValueWrapper wrapper)
+    {
+        return wrapper == null || (wrapper.get() == null || wrapper.get() == NullValue.INSTANCE);
+    }
+
+    private static void copyTransientToDelegateCaches()
+    {
+        final TransactionCacheState transientCacheState = transientData.get();
+        transientCacheState.transientCaches().forEach((name, tcd) ->
+        {
+            final Cache cache = tcd.getDelegate();
+            if (tcd.isCleared())
+            {
+                cache.clear();
+            }
+
+            for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
+            {
+                final Object key = entry.getKey();
+                final ValueWrapper valueWrapper = entry.getValue();
+                final Object value = valueWrapper.get();
+                if (value == NullValue.INSTANCE)
+                {
+                    logger.debug("Evicting {} from delegate cache {}", key, cache.getName());
+                    cache.evict(key);
+                }
+                else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
+                {
+                    logger.debug("Setting {}={} in delegate cache {}", key, value, cache.getName());
+                    cache.put(key, value);
+                }
+            }
+
+            tcd.getTransientCache().clear();
+        });
     }
 
     @Override
@@ -98,7 +171,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             return res;
         }
-        else if (!tcd.isCacheCleared())
+        else if (!tcd.isCleared())
         {
             logger.debug("Fetching {} from delegate cache {}", key, cache.getName());
             final ValueWrapper fromRealCache = cache.get(key);
@@ -112,7 +185,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                     tcd.getTransientCache().put(key, result);
                 } finally
                 {
-                    cacheSync();
+                    setupSyncToDelegateCaches();
                 }
             }
 
@@ -126,7 +199,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     private TransientCacheData tcd()
     {
         logger.trace("Getting transient cache for {}", cache.getName());
-        return transientData.get().get(cache.getName());
+        return transientData.get().get(cache);
     }
 
     @Override
@@ -154,78 +227,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
             tcd.getTransientCache().put(key, new SimpleValueWrapper(storedData));
         } finally
         {
-            cacheSync();
+            setupSyncToDelegateCaches();
         }
 
         return storedData;
-    }
-
-    private void cacheSync()
-    {
-        if (TransactionSynchronizationManager.isSynchronizationActive())
-        {
-            if (!transientData.get().isSyncSetup())
-            {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter()
-                {
-                    @Override
-                    public void afterCommit()
-                    {
-                        logger.debug("Transaction commit. Copying to delegate cache");
-                        copyTransient();
-                    }
-
-                    @Override
-                    public void afterCompletion(final int status)
-                    {
-                        transientData.remove();
-                        logger.debug("Transaction completed. Cleared transient data for cache {}", cache.getName());
-                    }
-                });
-                transientData.get().syncSetup();
-                logger.debug("Cache sync transaction callback added");
-            }
-        }
-        else
-        {
-            logger.debug("Sync outside of active transaction for cache {}", cache.getName());
-            copyTransient();
-        }
-    }
-
-    private boolean isNull(ValueWrapper wrapper)
-    {
-        return wrapper == null || (wrapper.get() == null || wrapper.get() == NullValue.INSTANCE);
-    }
-
-    private void copyTransient()
-    {
-        transientData.get().transientCaches().forEach((name, tcd) ->
-        {
-            if (tcd.isCacheCleared())
-            {
-                cache.clear();
-            }
-
-            for (Map.Entry<Object, ValueWrapper> entry : tcd.getTransientCache().entrySet())
-            {
-                final Object key = entry.getKey();
-                final ValueWrapper valueWrapper = entry.getValue();
-                final Object value = valueWrapper.get();
-                if (value == NullValue.INSTANCE)
-                {
-                    logger.debug("Evicting {} from delegate cache {}", key, getName());
-                    cache.evict(key);
-                }
-                else if (!(valueWrapper instanceof ReadOnlyValueWrapper))
-                {
-                    logger.debug("Setting {}={} in delegate cache {}", key, value, getName());
-                    cache.put(key, value);
-                }
-            }
-
-            tcd.getTransientCache().clear();
-        });
     }
 
     @Override
@@ -237,7 +242,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
             tcd.getTransientCache().put(key, new SimpleValueWrapper(value));
         } finally
         {
-            cacheSync();
+            setupSyncToDelegateCaches();
         }
     }
 
@@ -261,7 +266,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
             tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
         } finally
         {
-            cacheSync();
+            setupSyncToDelegateCaches();
         }
     }
 
@@ -271,11 +276,11 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         final TransientCacheData tcd = tcd();
         try
         {
-            tcd.cleared();
+            tcd.setCleared();
             tcd.getTransientCache().clear();
         } finally
         {
-            cacheSync();
+            setupSyncToDelegateCaches();
         }
     }
 

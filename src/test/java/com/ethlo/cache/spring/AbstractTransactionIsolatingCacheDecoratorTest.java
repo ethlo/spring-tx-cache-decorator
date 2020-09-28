@@ -90,6 +90,7 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
         mockTxnManager(true);
         decoratorA.put("foo", null);
         assertThat(decoratorA.get("foo")).isNull();
+        mockTransactionEnd(false);
     }
 
     @Test
@@ -349,6 +350,8 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
         decoratorA.clear();
 
         assertThat(decoratorA.get("foo", () -> "fresh")).isEqualTo("fresh");
+
+        mockTransactionEnd(true);
     }
 
     private void mockTransactionEnd(final boolean commit)

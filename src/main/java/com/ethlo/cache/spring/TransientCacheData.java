@@ -56,4 +56,9 @@ public class TransientCacheData
     {
         return delegate;
     }
+
+    public boolean isDirty()
+    {
+        return transientCache.values().stream().anyMatch(valueWrapper -> (!(valueWrapper instanceof ReadOnlyValueWrapper)));
+    }
 }

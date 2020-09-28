@@ -20,8 +20,11 @@ package com.ethlo.cache.spring;
  * #L%
  */
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -53,4 +56,9 @@ public class EnhancedTransactionAwareCacheDecoratorTest extends AbstractTransact
         decoratorA.putIfAbsent("foo", "bar");
     }
 
+    @After
+    public void checkCleanupOk()
+    {
+        assertThat(EnhancedTransactionAwareCacheDecorator.isDirty()).isFalse();
+    }
 }

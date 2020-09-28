@@ -34,6 +34,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.Assert;
 
 public class EnhancedTransactionAwareCacheDecorator implements Cache
 {
@@ -85,6 +86,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                     {
                         logger.debug("Transaction commit. Copying to delegate cache");
                         copyTransientToDelegateCaches();
+                        Assert.isTrue(!EnhancedTransactionAwareCacheDecorator.isDirty(), "Should have no dirty caches after sync");
                     }
 
                     @Override
@@ -140,6 +142,11 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
             tcd.getTransientCache().clear();
         });
+    }
+
+    public static boolean isDirty()
+    {
+        return transientData.get().transientCaches().values().stream().anyMatch(TransientCacheData::isDirty);
     }
 
     @Override

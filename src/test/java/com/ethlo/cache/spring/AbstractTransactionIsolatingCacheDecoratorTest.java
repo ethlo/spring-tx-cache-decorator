@@ -89,24 +89,43 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(true);
         decoratorA.put("foo", null);
-        assertThat(decoratorA.get("foo")).isNull();
+        final Cache.ValueWrapper decoratorValue = decoratorA.get("foo");
+
+        // Check we have value wrapper
+        assertThat(decoratorValue).isNotNull();
+
+        // Check we wrap null
+        assertThat(decoratorValue.get()).isNull();
+
         mockTransactionEnd(false);
     }
 
     @Test
-    public void testCacheExplicitNull()
+    public void testCacheNullInsideTransaction()
     {
-        decoratorA.put("foo", NullValue.INSTANCE);
-        assertThat(decoratorA.get("foo")).isNull();
+        mockTxnManager(true);
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(true);
+        decoratorB.put("foo", null);
+
+        final Cache.ValueWrapper decoratorWrapperValue = decoratorB.get("foo");
+        assertThat(decoratorWrapperValue).isNotNull();
+        assertThat(decoratorWrapperValue.get()).isNull();
+
+        final Object decoratorValue = decoratorB.get("foo", Object.class);
+        assertThat(decoratorValue).isNull();
+
+        mockTransactionEnd(true);
+        final Object realCacheEntry = realCacheB.get("foo");
+        assertThat(realCacheEntry).isEqualTo(NullValue.INSTANCE);
     }
 
     @Test
-    public void testCacheNullExisting()
+    public void testCacheExplicitNullDirectNoTransaction()
     {
-        decoratorA.put("foo", null);
-
-        mockTxnManager(true);
-        assertThat(decoratorA.get("foo")).isNull();
+        decoratorB.put("foo", null);
+        final Object decoratorWrapperValue = realCacheB.get("foo");
+        assertThat(decoratorWrapperValue).isNotNull();
+        assertThat(decoratorWrapperValue).isEqualTo(NullValue.INSTANCE);
     }
 
     @Test

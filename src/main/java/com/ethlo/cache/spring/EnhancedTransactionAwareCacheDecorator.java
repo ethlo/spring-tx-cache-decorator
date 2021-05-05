@@ -128,7 +128,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 final Object key = entry.getKey();
                 final ValueWrapper valueWrapper = entry.getValue();
                 final Object value = valueWrapper.get();
-                if (value == NullValue.INSTANCE)
+                if (valueWrapper == EvictMarker.INSTANCE)
                 {
                     logger.debug("Evicting {} from delegate cache {}", key, cache.getName());
                     cache.evict(key);
@@ -169,9 +169,9 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     {
         final TransientCacheData tcd = tcd();
         final ValueWrapper res = tcd.getTransientCache().get(key);
-        if (res != null && isNull(res))
+        if (res == EvictMarker.INSTANCE)
         {
-            // Was explicitly set as deleted
+            // Was explicitly set as evicted
             return null;
         }
         else if (res != null)
@@ -270,7 +270,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         final TransientCacheData tcd = tcd();
         try
         {
-            tcd.getTransientCache().put(key, new SimpleValueWrapper(NullValue.INSTANCE));
+            tcd.getTransientCache().put(key, EvictMarker.INSTANCE);
         } finally
         {
             setupSyncToDelegateCaches();

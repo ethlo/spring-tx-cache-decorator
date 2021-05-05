@@ -31,6 +31,7 @@ import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
+import org.springframework.cache.jcache.JCacheCache;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @RunWith(PowerMockRunner.class)

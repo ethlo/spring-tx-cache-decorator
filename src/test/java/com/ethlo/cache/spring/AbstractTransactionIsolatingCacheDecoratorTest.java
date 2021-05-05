@@ -25,7 +25,12 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+
+import javax.cache.Caching;
+import javax.cache.configuration.MutableConfiguration;
+import javax.cache.spi.CachingProvider;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -74,7 +79,6 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     public void testGetName()
     {
         assertThat(decoratorA.getName()).isEqualTo("my-cache-a");
-        assertThat(decoratorB.getName()).isEqualTo("my-cache-b");
     }
 
     @Test(expected = IllegalStateException.class)
@@ -89,24 +93,43 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     {
         mockTxnManager(true);
         decoratorA.put("foo", null);
-        assertThat(decoratorA.get("foo")).isNull();
+        final Cache.ValueWrapper decoratorValue = decoratorA.get("foo");
+
+        // Check we have value wrapper
+        assertThat(decoratorValue).isNotNull();
+
+        // Check we wrap null
+        assertThat(decoratorValue.get()).isNull();
+
         mockTransactionEnd(false);
     }
 
     @Test
-    public void testCacheExplicitNull()
+    public void testCacheNullInsideTransaction()
     {
-        decoratorA.put("foo", NullValue.INSTANCE);
-        assertThat(decoratorA.get("foo")).isNull();
+        mockTxnManager(true);
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(true);
+        decoratorB.put("foo", null);
+
+        final Cache.ValueWrapper decoratorWrapperValue = decoratorB.get("foo");
+        assertThat(decoratorWrapperValue).isNotNull();
+        assertThat(decoratorWrapperValue.get()).isNull();
+
+        final Object decoratorValue = decoratorB.get("foo", Object.class);
+        assertThat(decoratorValue).isNull();
+
+        mockTransactionEnd(true);
+        final Object realCacheEntry = realCacheB.get("foo");
+        assertThat(realCacheEntry).isEqualTo(NullValue.INSTANCE);
     }
 
     @Test
-    public void testCacheNullExisting()
+    public void testCacheExplicitNullDirectNoTransaction()
     {
-        decoratorA.put("foo", null);
-
-        mockTxnManager(true);
-        assertThat(decoratorA.get("foo")).isNull();
+        decoratorB.put("foo", null);
+        final Object decoratorWrapperValue = realCacheB.get("foo");
+        assertThat(decoratorWrapperValue).isNotNull();
+        assertThat(decoratorWrapperValue).isEqualTo(NullValue.INSTANCE);
     }
 
     @Test

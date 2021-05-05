@@ -18,7 +18,7 @@
     </parent>
     <groupId>com.ethlo.cache</groupId>
     <artifactId>spring-tx-cache-decorator</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3-SNAPSHOT</version>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>

@@ -74,6 +74,7 @@ public abstract class AbstractTransactionIsolatingCacheDecoratorTest
     public void testGetName()
     {
         assertThat(decoratorA.getName()).isEqualTo("my-cache-a");
+        assertThat(decoratorB.getName()).isEqualTo("my-cache-b");
     }
 
     @Test(expected = IllegalStateException.class)

@@ -25,12 +25,7 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 
 import java.io.IOException;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
-
-import javax.cache.Caching;
-import javax.cache.configuration.MutableConfiguration;
-import javax.cache.spi.CachingProvider;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

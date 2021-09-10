@@ -196,7 +196,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 }
             }
 
-            return isNull(result) ? null : result;
+            return fromRealCache;
         }
 
         // Cleared

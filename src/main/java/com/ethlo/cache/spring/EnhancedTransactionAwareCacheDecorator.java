@@ -28,7 +28,6 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
-import org.springframework.cache.support.NullValue;
 import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -100,16 +99,11 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 logger.debug("Transaction synchronization callback added");
             }
         }
-        else
-        {
-            logger.debug("Cache manipulation outside of an active transaction");
-            copyTransientToDelegateCaches();
-        }
     }
 
     private static boolean isNull(ValueWrapper wrapper)
     {
-        return wrapper == null || (wrapper.get() == null || wrapper.get() == NullValue.INSTANCE);
+        return wrapper == null || wrapper.get() == null;
     }
 
     private static void copyTransientToDelegateCaches()
@@ -167,6 +161,9 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public ValueWrapper get(@NonNull final Object key)
     {
+    	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+    		return cache.get(key);
+    	}
         final TransientCacheData tcd = tcd();
         final ValueWrapper res = tcd.getTransientCache().get(key);
         if (res == EvictMarker.INSTANCE)
@@ -196,7 +193,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
                 }
             }
 
-            return isNull(result) ? null : result;
+            return fromRealCache;
         }
 
         // Cleared
@@ -220,6 +217,9 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Nullable
     public <T> T get(final @NonNull Object key, final @NonNull Callable<T> valueLoader)
     {
+    	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+    		return cache.get(key, valueLoader);
+    	}
         final ValueWrapper res = get(key);
         if (res != null)
         {
@@ -243,6 +243,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void put(final @NonNull Object key, final Object value)
     {
+    	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+    		cache.put(key, value);
+    		return;
+    	}
         final TransientCacheData tcd = tcd();
         try
         {
@@ -267,6 +271,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void evict(final @NonNull Object key)
     {
+    	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+    		cache.evict(key);
+    		return;
+    	}
         final TransientCacheData tcd = tcd();
         try
         {
@@ -280,6 +288,10 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     @Override
     public void clear()
     {
+    	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+    		cache.clear();
+    		return;
+    	}
         final TransientCacheData tcd = tcd();
         try
         {

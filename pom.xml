@@ -9,27 +9,27 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <java.version>8</java.version>
         <gpg.skip>true</gpg.skip>
-        <powermock.version>2.0.7</powermock.version>
+        <powermock.version>2.0.9</powermock.version>
     </properties>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.3.3.RELEASE</version>
+        <version>3.2.1</version>
     </parent>
     <groupId>com.ethlo.cache</groupId>
     <artifactId>spring-tx-cache-decorator</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5-SNAPSHOT</version>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
     <developers>
         <developer>
             <name>Morten Haraldsen</name>
-            <url>http://ethlo.com</url>
+            <url>https://ethlo.com</url>
         </developer>
     </developers>
     <url>https://github.com/ethlo/spring-tx-cache-decorator</url>
@@ -106,9 +106,15 @@
                 <version>3.8.1</version>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.22.2</version>
+                <configuration>
+                    <argLine>
+                        --add-opens java.base/java.lang=ALL-UNNAMED
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                        --add-opens java.base/java.util.concurrent=ALL-UNNAMED
+                    </argLine>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -126,7 +132,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.5</version>
+                <version>0.8.11</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
@@ -243,7 +249,7 @@
         <repository>
             <id>sonatype-nexus-staging</id>
             <name>Nexus Release Repository</name>
-            <url>http://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
         <snapshotRepository>
             <id>sonatype-nexus-snapshots</id>
@@ -252,7 +258,7 @@
         </snapshotRepository>
     </distributionManagement>
     <scm>
-        <url>http://github.com:ethlo/spring-tx-cache-decorator</url>
+        <url>https://github.com:ethlo/spring-tx-cache-decorator</url>
         <connection>scm:git:git@github.com:ethlo/spring-tx-cache-decorator.git</connection>
         <developerConnection>scm:git:git@github.com:ethlo/spring-tx-cache-decorator.git</developerConnection>
     </scm>

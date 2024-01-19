@@ -29,17 +29,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.SimpleValueWrapper;
+import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.Assert;
 
-public class EnhancedTransactionAwareCacheDecorator implements Cache
+public class EnhancedTransactionAwareCacheDecorator extends TransactionAwareCacheDecorator
 {
     private static final Logger logger = LoggerFactory.getLogger(EnhancedTransactionAwareCacheDecorator.class);
     private static final ThreadLocal<TransactionCacheState> transientData = ThreadLocal.withInitial(TransactionCacheState::new);
-    private final Cache cache;
     private final boolean errorOnUnsafe;
     private final boolean cacheCacheResult;
 
@@ -59,7 +59,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     public EnhancedTransactionAwareCacheDecorator(final Cache cache, final boolean errorOnUnsafe, final boolean cacheCacheResult)
     {
-        this.cache = cache;
+        super(cache);
         this.errorOnUnsafe = errorOnUnsafe;
         this.cacheCacheResult = cacheCacheResult;
     }
@@ -144,25 +144,11 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     }
 
     @Override
-    public @NonNull
-    String getName()
-    {
-        return cache.getName();
-    }
-
-    @Override
-    public @NonNull
-    Object getNativeCache()
-    {
-        return cache.getNativeCache();
-    }
-
-    @Override
     @Nullable
     public ValueWrapper get(@NonNull final Object key)
     {
     	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-    		return cache.get(key);
+    		return getTargetCache().get(key);
     	}
         final TransientCacheData tcd = tcd();
         final ValueWrapper res = tcd.getTransientCache().get(key);
@@ -177,8 +163,8 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         }
         else if (!tcd.isCleared())
         {
-            logger.debug("Fetching {} from delegate cache {}", key, cache.getName());
-            final ValueWrapper fromRealCache = cache.get(key);
+            logger.debug("Fetching {} from delegate cache {}", key, getTargetCache().getName());
+            final ValueWrapper fromRealCache = getTargetCache().get(key);
             final ValueWrapper result = Optional.ofNullable(fromRealCache).map(ValueWrapper::get).map(ReadOnlyValueWrapper::new).filter(v -> !isNull(v)).orElse(new ReadOnlyValueWrapper(null));
 
             if (cacheCacheResult)
@@ -202,8 +188,8 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
 
     private TransientCacheData tcd()
     {
-        logger.trace("Getting transient cache for {}", cache.getName());
-        return transientData.get().get(cache);
+        logger.trace("Getting transient cache for {}", getTargetCache().getName());
+        return transientData.get().get(getTargetCache());
     }
 
     @Override
@@ -218,7 +204,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     public <T> T get(final @NonNull Object key, final @NonNull Callable<T> valueLoader)
     {
     	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-    		return cache.get(key, valueLoader);
+    		return getTargetCache().get(key, valueLoader);
     	}
         final ValueWrapper res = get(key);
         if (res != null)
@@ -244,7 +230,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     public void put(final @NonNull Object key, final Object value)
     {
     	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-    		cache.put(key, value);
+    		getTargetCache().put(key, value);
     		return;
     	}
         final TransientCacheData tcd = tcd();
@@ -265,14 +251,14 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
         {
             throw new IllegalStateException("Not allowed to be used in a transactional mode");
         }
-        return cache.putIfAbsent(key, value);
+        return getTargetCache().putIfAbsent(key, value);
     }
 
     @Override
     public void evict(final @NonNull Object key)
     {
     	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-    		cache.evict(key);
+    		getTargetCache().evict(key);
     		return;
     	}
         final TransientCacheData tcd = tcd();
@@ -289,7 +275,7 @@ public class EnhancedTransactionAwareCacheDecorator implements Cache
     public void clear()
     {
     	if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-    		cache.clear();
+    		getTargetCache().clear();
     		return;
     	}
         final TransientCacheData tcd = tcd();

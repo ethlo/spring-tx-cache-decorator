@@ -18,7 +18,7 @@
     </parent>
     <groupId>com.ethlo.cache</groupId>
     <artifactId>spring-tx-cache-decorator</artifactId>
-    <version>1.0.5</version>
+    <version>0-SNAPSHOT</version>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -114,7 +114,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>3.5.6</version>
                 <configuration>
                     <argLine>
                         --add-opens java.base/java.lang=ALL-UNNAMED
@@ -139,7 +139,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.16</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>

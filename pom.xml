@@ -19,6 +19,8 @@
     <groupId>com.ethlo.cache</groupId>
     <artifactId>spring-tx-cache-decorator</artifactId>
     <version>0-SNAPSHOT</version>
+    <name>spring-tx-cache-decorator</name>
+    <description>Transaction-aware cache decorator that holds cache values transiently until commit to avoid polluting the cache with invalid values in case of a rollback.</description>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
